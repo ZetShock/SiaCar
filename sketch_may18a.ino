@@ -1,155 +1,95 @@
+/**
+ * @file sketch_may18a.ino
+ * @brief Written for SIA 2017/2018 
+ * 
+ * Dieser Code soll auf dem ArduinoUNO im Hauptfahrzeug laufen, 
+ * die Kommunikation mit der <b>Fernsteuerng</b> und dem 
+ * ArduinoNANO übernehmen. Zusätzlich sollen hier alle
+ * Fahrfunktionen wie Autonomes-Fahren integriert werden.
+ * 
+ * @warning Da WIP nicht vollständig im Doxygen-Standard dokumentiert
+ * 
+ * @version 0.1.0
+ * 
+ * @author ZetShock
+ * @author eagleSIA
+ * 
+ */
 
-//#include "qfixDynamixelBoard.h"
-#define PREPROCESS_DEBUG 0x1
-#define EBOARD_BLUETOOTH 0x1
-#define PIN_BLUETOOTH_STATE 9
-#define PIN_BLUETOOTH_RX 9
-#define PIN_BLUETOOTH_TX 11
-#define EBOARD_DEBUG_SPEED 38400
-#define EBOARD_CHECK_PINS 0x0
-#define EBOARD_CHECK_PINS_PWM 0x0
+/* Anfang -- Macro definitionen für eBoard.h */
+
+#define PREPROCESS_DEBUG 0x1      /* Aktiviere Preprocessor Debug */
+#define EBOARD_BLUETOOTH 0x1      /* Aktiviere Bluetooth Funktionen */
+#define PIN_BLUETOOTH_STATE 9     /* Setze Bluetooth STATE Pin gleich dem RX Pin => Deaktiviert */
+#define PIN_BLUETOOTH_RX 9        /* Setze Bluetooth RX Pin auf 9 (10 blockiert durch SPI) */
+#define PIN_BLUETOOTH_TX 11       /* Setze Bluetooth TX Pin auf 11 */
+#define EBOARD_DEBUG_SPEED 38400  /* Setze Debug-Geschwindigkeit auf 38400 (unabhängig von Bluetooth) => 38400 im Seriellen Monitor */ 
+#define EBOARD_CHECK_PINS 0x0     /* Deaktiviere Pin-Kontrollen */
+#define EBOARD_CHECK_PINS_PWM 0x0 /* Deaktiviere PWM-Pin-Kontrollen */
+
+/* Ende   -- Macro definitionen für eBoard.h */
+
 #include <eBoard.h>
-SoccerBoard board;
-String endCommand;
-// // RX | TX
-int regel = 0;
+
+SoccerBoard board; /* Das SoccerBoard objekt */
+// String endCommand; /* Entfernt => Obsolet */
+
+// int regel = 0; /* Entfernt => Obsolet */
+/* Anfang -- main - Funktion */
 int main() {
-  int regel = 0;
-  SoftwareSerial BTSerial(9, 11);
-  BTSerial.begin(19200);
-  pinMode(PIN_MOTOR_DIR, OUTPUT);
-  //_servoHandler.begin();
-  for(int i = 0; i  < 200; i++) {
-       board.motor(1,150);
-       board.motor(2,150);
-       delay(10);
-  }
-  for (;;) {
-    //Serial.println("AAAAAAAAAAAAAAA");
-    //char_array[0] = BTSerial.read();   //length = char_array.length + 1;
+    //int regel = 0; /* Entfernt => Obsolet */
 
-    int Command = BTSerial.read();
-    if (Command >= 0) {
-      Serial.println(Command);
-      Serial.println();
+    /* INFO: RB14Scan sollte das gleiche machen - aufm global Scope */ 
 
-      if (Command < 21) { //Geschwindigkeit Command=10: 0
-        board.motor(0, (Command - 10) * 20);
-        digitalWrite(PIN_MOTOR_DIR, Command < 10);
+    SoftwareSerial BTSerial(9, 11);
+    BTSerial.begin(19200);
+    
+    pinMode(PIN_MOTOR_DIR, OUTPUT); /* Sollte eigentlich auch überflüssig sein */ 
 
-      }
-      else if (Command > 28 && Command < 32) { //Lenkung 31: Rechts | 30 Mitte | 29 Links
-        board.motor(1,-(Command-31)*30 + 120);
-        board.motor(2,-(Command-31)*30 + 120);
-      }
-      else { //Fehlerhafte Command: Stillstand
-        board.motor(0, 0);
-
-      }
+    /* 
+     * Der Idle am Anfang um zu Warten bis das smart servo shield ansprechbar ist
+     * Diese Zeit kann genutzt werden!
+     */
+    for(int i = 0; i  < 200; i++) {
+        board.motor(1,150); /* Linker  Servo - Nicht verifiziert => <b>testen</b> */ 
+        board.motor(2,150); /* Rechter Servo - Nicht verifiziert => <b>testen</b> */ 
+        delay(10); /* Wartet insgesamt 2 Sekunden - Verkürzen? */
     }
-  }
+
+    
+    /*
+     * ENDLOSSCHLEIFE - Abbruch einbauen ?
+     * > Notaus ? 
+     */
+    for (;;) {
+
+        /* lesen ob die Fernbedienung etwas sendet - 64 byte Buffer */
+        int Command = BTSerial.read(); /* INFO Man kann int Command auch rausziehen damit das nicht jedesmal gemacht wird */
+        
+        if (Command >= 0) { /* Wenn etwas empfangen wurde... */ 
+
+            Serial.println(Command); /* DEBUG */
+            Serial.println(); /* DEBUG */
+
+            /* 0-20 wird als Geschwindigkeit interpretiert - 10 ist hier stillstand */
+            if (Command < 21) {
+                board.motor(0, (Command - 10) * 20); /* INFO: Dass das Fahren nicht funktioniert hat lag an einem cast bug ^^ */ 
+                digitalWrite(PIN_MOTOR_DIR, Command < 10); /* Werte kleiner 10 werden als 'rückwärts' interpretiert - Obsolet da in motor integiert */
+
+            }
+            /* 29-31 wird als Lenkwinkel interpretiert - 30 ist hier die Mitte, 31 Rechts, 30 Links */
+            else if (Command > 28 && Command < 32) {
+                board.motor(1,-(Command-31)*30 + 120);
+                board.motor(2,-(Command-31)*30 + 120);
+            }
+            /* Alles andere resultiert in einem Anhalten */
+            else 
+                board.motor(0, 0);
+            }
+        }
+    }
+  
 }
+/* Ende   -- main - Funktion */
 
-/*
-     case 29:
-       board.motor(1,180);
-       board.motor(2,180);
-     break;
-     case 30:
-       board.motor(1,150);
-       board.motor(2,150);
-     break;
-     case 31:
-       board.motor(1,120);
-       board.motor(2,120);
-     break;
-*/
-/*regel=0;
-
-  lcd.clear();
-
-  if(board.analog(4) >15)
-   regel = regel+1;
-
-  if(board.analog(3) >30)
-   regel = regel+2;
-  if(board.analog(2) >15)
-   regel = regel+4;
-
-
-  switch(regel)
-  {
-   case 0:
-     servoL.setPosition(511);
-     servoR.setPosition(512);
-     board.motor(0, 125);
-     board.msleep(20); break;
-
-   case 1:
-     servoL.setPosition(724);
-     servoR.setPosition(724);
-     board.motor(0, 125);
-     board.msleep(20); break;
-
-   case 3:
-     servoL.setPosition(724);
-     servoR.setPosition(724);
-     board.motor(0, 125);
-     board.msleep(20); break;
-   case 2:
-   case 4:
-     servoL.setPosition(300);
-     servoR.setPosition(300);
-     board.motor(0, 125);
-     board.msleep(20); break;
-   case 5:
-   case 6:
-     servoL.setPosition(724);
-     servoR.setPosition(724);
-     board.motor(0, 125);
-     board.msleep(20); break;
-
-   case 7:
-
-     if(board.analog(5) >100)
-       board.motorsOff();
-
-     else
-     {
-       servoL.setPosition(512);
-       servoR.setPosition(511);
-       board.motor(0, -125);
-       board.msleep(500); break;
-     }
-   default:
-      board.motorsOff();
-  }
-     break;
-     case 24:
-       board.motorsOff();          //Notaus
-     break;
-     case 25:
-                                   //Rücklichter an/aus
-     break;
-     case 26:
-                                   //7Frontlichter an/aus
-     break;
-     case 27
-                                   //Objekt finden
-     break;
-     case 28
-     break;
-     case 29:
-     break;
-     case 30:
-       servoL.setPosition(724)
-       servoR.setPosition(724)
-     break;
-     case 31:
-       servoL.setPosition(511)
-       servoR.setposition(512)
-     break;
-     case 32:
-       servoL.setPosition(300)
-       servoR.setPosition(300)
-     break;*/
+/* Entfernt - Alte Regel-Verwaltung */
